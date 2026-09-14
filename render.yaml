@@ -1,0 +1,14 @@
+# Render Blueprint for 1-Click Free Hosting
+services:
+  - type: web
+    name: occasion-spaces
+    env: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: ./occasion_spaces.db
+

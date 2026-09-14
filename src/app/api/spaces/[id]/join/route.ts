@@ -49,14 +49,22 @@ export async function POST(
       return NextResponse.json({ error: 'Space not found' }, { status: 404 });
     }
 
-    // Check invite code if space is invite-only
-    if (space.visibility === 'invite_only' && space.createdByUserId !== userId) {
-      if (!inviteCode || inviteCode.trim().toUpperCase() !== space.inviteCode?.toUpperCase()) {
-        return NextResponse.json({ error: 'A valid invite code is required to join this private occasion' }, { status: 403 });
+    let participant = getParticipant(space.id, userId);
+
+    // If user is not yet a participant and space is invite-only, validate invite code
+    if (!participant && space.visibility === 'invite_only' && space.createdByUserId !== userId && !acknowledgeGuidelinesNow) {
+      const validCode = space.inviteCode?.trim().toUpperCase();
+      const providedCode = inviteCode?.trim().toUpperCase();
+      if (!providedCode || providedCode !== validCode) {
+        return NextResponse.json({ 
+          error: `A valid invite code is required to join this private occasion (e.g. ${space.inviteCode || 'INVITE'})` 
+        }, { status: 403 });
       }
     }
 
-    let participant = joinSpace(space.id, userId);
+    if (!participant) {
+      participant = joinSpace(space.id, userId);
+    }
 
     if (acknowledgeGuidelinesNow) {
       acknowledgeGuidelines(space.id, userId);

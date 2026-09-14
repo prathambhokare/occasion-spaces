@@ -7,7 +7,7 @@ import {
 } from './types';
 import { getSpaceStatus } from './lifecycle';
 
-const dbPath = path.resolve(process.cwd(), 'occasion_spaces.db');
+const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'occasion_spaces.db');
 const db = new Database(dbPath, { timeout: 15000 });
 
 // Enable foreign keys, busy timeout, and WAL mode for better concurrency
@@ -134,6 +134,13 @@ export function initDb() {
       FOREIGN KEY(space_id) REFERENCES spaces(id) ON DELETE CASCADE,
       FOREIGN KEY(actor_user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE INDEX IF NOT EXISTS idx_spaces_city ON spaces(city);
+    CREATE INDEX IF NOT EXISTS idx_spaces_starts_at ON spaces(starts_at);
+    CREATE INDEX IF NOT EXISTS idx_contributions_space_status ON contributions(space_id, status);
+    CREATE INDEX IF NOT EXISTS idx_participants_user ON space_participants(user_id);
+    CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(user_id, blocked_user_id);
   `);
 
   seedDefaultData();

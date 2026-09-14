@@ -9,6 +9,7 @@ interface GuidelinesModalProps {
   onAcknowledge: () => void;
   occasionName: string;
   occasionType?: string;
+  isSubmitting?: boolean;
 }
 
 export function GuidelinesModal({
@@ -17,6 +18,7 @@ export function GuidelinesModal({
   onAcknowledge,
   occasionName,
   occasionType = 'festival',
+  isSubmitting = false,
 }: GuidelinesModalProps) {
   if (!isOpen) return null;
 
@@ -117,10 +119,11 @@ export function GuidelinesModal({
           </button>
           <button
             onClick={onAcknowledge}
-            className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl shadow-xs transition-all flex items-center gap-2"
+            disabled={isSubmitting}
+            className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 disabled:opacity-50 rounded-xl shadow-xs transition-all flex items-center gap-2"
           >
             <ShieldCheck className="w-4 h-4" />
-            I Acknowledge & Agree
+            {isSubmitting ? 'Acknowledging...' : 'I Acknowledge & Agree'}
           </button>
         </div>
 

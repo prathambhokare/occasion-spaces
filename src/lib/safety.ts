@@ -76,8 +76,19 @@ export function checkContentSafety(captionOrNote: string): SafetyCheckResult {
 }
 
 /**
+ * Strips raw HTML and script tags to prevent XSS (NFR12)
+ */
+export function sanitizeText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .trim();
+}
+
+/**
  * In-memory sliding window rate limiter for user contributions
- * (e.g., max 5 contributions within 15 minutes)
+ * (e.g., max 5 contributions within 15 minutes) with automatic memory pruning
  */
 const contributionTimestamps: Map<string, number[]> = new Map();
 
@@ -97,5 +108,18 @@ export function checkRateLimit(userId: string, maxPosts: number = 5, windowMinut
 
   validTimes.push(now);
   contributionTimestamps.set(userId, validTimes);
+
+  // Periodically prune old keys to prevent memory leaks
+  if (contributionTimestamps.size > 200) {
+    for (const [key, times] of contributionTimestamps.entries()) {
+      const active = times.filter((ts) => now - ts < windowMs);
+      if (active.length === 0) {
+        contributionTimestamps.delete(key);
+      } else {
+        contributionTimestamps.set(key, active);
+      }
+    }
+  }
+
   return { allowed: true };
 }

@@ -196,6 +196,7 @@ export default function SpaceDetailPage({
 
       setParticipant(data.participant);
       setInputInviteCode('');
+      setInviteModalOpen(false);
       loadSpaceData();
     } catch (err: any) {
       setInviteCodeError(err.message || 'Could not join');
@@ -247,8 +248,11 @@ export default function SpaceDetailPage({
   };
 
   // Handle Guidelines Acknowledgment (FR31)
+  const [acknowledgingGuidelines, setAcknowledgingGuidelines] = useState(false);
+
   const handleAcknowledgeGuidelines = async () => {
     if (!space) return;
+    setAcknowledgingGuidelines(true);
     try {
       const res = await fetch(`/api/spaces/${space.id}/join`, {
         method: 'POST',
@@ -256,15 +260,23 @@ export default function SpaceDetailPage({
         body: JSON.stringify({
           userId: currentUser.id,
           acknowledgeGuidelinesNow: true,
+          inviteCode: inputInviteCode || space.inviteCode || undefined,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setParticipant(data.participant);
         setGuidelinesModalOpen(false);
+        setComposerOpen(true); // Open contribution modal immediately
+        loadSpaceData();
+      } else {
+        alert(data.error || 'Could not acknowledge guidelines');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Guidelines acknowledge error:', err);
+      alert(err.message || 'Error acknowledging guidelines');
+    } finally {
+      setAcknowledgingGuidelines(false);
     }
   };
 
@@ -690,7 +702,13 @@ export default function SpaceDetailPage({
                 </div>
               ) : (
                 <button
-                  onClick={() => handleJoinSpace()}
+                  onClick={() => {
+                    if (space.visibility === 'invite_only' && space.createdByUserId !== currentUser.id) {
+                      setInviteModalOpen(true);
+                    } else {
+                      handleJoinSpace();
+                    }
+                  }}
                   className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs shadow-xs transition-transform active:scale-95 flex items-center gap-1.5"
                 >
                   <Users className="w-3.5 h-3.5" />
@@ -1654,7 +1672,84 @@ export default function SpaceDetailPage({
         onAcknowledge={handleAcknowledgeGuidelines}
         occasionName={space.name}
         occasionType={space.occasionType}
+        isSubmitting={acknowledgingGuidelines}
       />
+
+      {/* Invite Code Modal (FR11) */}
+      {inviteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white dark:bg-stone-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 dark:border-stone-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                    Invite-Only Occasion Space
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    Enter the code provided by the organizer to join
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInviteModalOpen(false)}
+                className="text-stone-400 hover:text-stone-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {inviteCodeError && (
+              <div className="p-3 text-xs bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded-xl border border-rose-200 dark:border-rose-800">
+                {inviteCodeError}
+              </div>
+            )}
+
+            <form onSubmit={handleJoinSpace} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
+                  Invitation Code
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={inputInviteCode}
+                  onChange={(e) => setInputInviteCode(e.target.value.toUpperCase())}
+                  placeholder="e.g., JAIPUR2026"
+                  className="w-full text-sm font-mono tracking-widest text-center uppercase p-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                />
+                {space.inviteCode && (
+                  <button
+                    type="button"
+                    onClick={() => setInputInviteCode(space.inviteCode || '')}
+                    className="text-[11px] text-amber-600 hover:underline mt-1 block"
+                  >
+                    Demo auto-fill: Use code &quot;{space.inviteCode}&quot;
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setInviteModalOpen(false)}
+                  className="px-4 py-2 text-xs text-stone-500 hover:text-stone-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs"
+                >
+                  Join Occasion
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Report Modal (FR26) */}
       {reportModalData && (
