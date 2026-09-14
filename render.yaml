@@ -11,4 +11,5 @@ services:
         value: production
       - key: DATABASE_PATH
         value: ./occasion_spaces.db
-
+      - key: NODE_VERSION
+        value: 22.14.0

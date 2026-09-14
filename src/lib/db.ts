@@ -8,6 +8,10 @@ import {
 import { getSpaceStatus } from './lifecycle';
 
 const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'occasion_spaces.db');
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 const db = new Database(dbPath, { timeout: 15000 });
 
 // Enable foreign keys, busy timeout, and WAL mode for better concurrency

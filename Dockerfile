@@ -1,12 +1,16 @@
 # ==============================================================================
 # Occasion Spaces - Production Multi-Stage Dockerfile
-# Optimized for Node.js 20/22 + SQLite (better-sqlite3) on persistent storage
+# Node 22 (Debian Bookworm Slim) for full better-sqlite3 (>=22) & Next.js 16 compatibility
 # ==============================================================================
 
 # 1. Base image with build tools for native better-sqlite3 compilation
-FROM node:20-alpine AS base
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # 2. Dependencies stage
 FROM base AS deps
@@ -21,15 +25,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
 
 RUN npm run build
 
 # 4. Production Runner stage
-FROM node:20-alpine AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-
-RUN apk add --no-cache sqlite-libs
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -39,12 +40,12 @@ ENV HOSTNAME="0.0.0.0"
 # Create volume mount point for persistent SQLite database
 RUN mkdir -p /app/data && chown -R node:node /app
 
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/package-lock.json ./package-lock.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/src ./src
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --from=builder --chown=node:node /app/package-lock.json ./package-lock.json
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/.next ./.next
+COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/src ./src
 
 # Set default persistent database path
 ENV DATABASE_PATH=/app/data/occasion_spaces.db
@@ -54,4 +55,3 @@ USER node
 EXPOSE 3000
 
 CMD ["npm", "start"]
-
