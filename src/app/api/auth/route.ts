@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllUsers, getUserById, createOrVerifyUser } from '@/lib/db';
+import { getAllUsers, getUserById, createOrVerifyUser, createSession } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,7 +20,19 @@ export async function POST(req: NextRequest) {
     }
 
     const user = createOrVerifyUser(displayName.trim(), contactType, contactValue.trim());
-    return NextResponse.json({ user, message: 'Identity verified successfully' });
+    const session = createSession(user.id);
+
+    const res = NextResponse.json({ user, message: 'Identity verified successfully' });
+    res.cookies.set({
+      name: 'occasion_session',
+      value: session.id,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+    });
+    return res;
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

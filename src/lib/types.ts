@@ -38,6 +38,7 @@ export interface User {
   isVerified: boolean;
   role: UserRole;
   createdAt: string;
+  hasPassword?: boolean;
 }
 
 export interface Space {

@@ -31,7 +31,7 @@ export function ReportModal({
   contributionCaption,
   authorName,
 }: ReportModalProps) {
-  const { currentUser } = useAuth();
+  const { currentUser, openAuthModal } = useAuth();
   const [category, setCategory] = useState<ReportCategory>('disrespectful');
   const [details, setDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +42,10 @@ export function ReportModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      openAuthModal('otp');
+      return;
+    }
     setSubmitting(true);
     setErrorMessage('');
 

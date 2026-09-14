@@ -1,9 +1,10 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { 
   User, Space, SpaceParticipant, Contribution, 
-  Announcement, Report, ActivityLog, SpaceStatus, ContributionStatus 
+  Announcement, Report, ActivityLog, ContributionStatus 
 } from './types';
 import { getSpaceStatus } from './lifecycle';
 
@@ -145,7 +146,36 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_participants_user ON space_participants(user_id);
     CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
     CREATE INDEX IF NOT EXISTS idx_blocked_users ON blocked_users(user_id, blocked_user_id);
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS verification_codes (
+      id TEXT PRIMARY KEY,
+      contact_type TEXT NOT NULL CHECK(contact_type IN ('phone', 'email')),
+      contact_value TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_verification_contact ON verification_codes(contact_value);
   `);
+
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN password_salt TEXT');
+  } catch (_) {}
 
   seedDefaultData();
 }
@@ -498,21 +528,209 @@ function seedDefaultData() {
 // Initialize on module load
 initDb();
 
+// Cryptographic Password Hashing Helpers
+export function hashPassword(password: string): { salt: string; hash: string } {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { salt, hash };
+}
+
+export function verifyPasswordHash(password: string, salt: string, hash: string): boolean {
+  try {
+    const computed = crypto.scryptSync(password, salt, 64);
+    const stored = Buffer.from(hash, 'hex');
+    return crypto.timingSafeEqual(computed, stored);
+  } catch {
+    return false;
+  }
+}
+
+// Ensure demo accounts have default password for testing
+try {
+  const demoUsers = ['user-priya', 'user-rahul', 'user-anita', 'user-samira'];
+  const { salt, hash } = hashPassword('password123');
+  for (const uid of demoUsers) {
+    db.prepare('UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ? AND (password_hash IS NULL OR password_hash = "")').run(salt, hash, uid);
+  }
+} catch (_) {}
+
+// Database-backed Session Management
+export function createSession(userId: string): { id: string; expiresAt: string } {
+  pruneExpiredSessions();
+  const sessionId = crypto.randomBytes(32).toString('hex');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+  db.prepare(`
+    INSERT INTO sessions (id, user_id, expires_at, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(sessionId, userId, expiresAt, now.toISOString());
+  return { id: sessionId, expiresAt };
+}
+
+export function getSession(sessionId: string): { session: { id: string; userId: string; expiresAt: string }; user: User } | null {
+  const row: any = db.prepare(`
+    SELECT s.id as sessionId, s.user_id as userId, s.expires_at as expiresAt,
+           u.id, u.display_name as displayName, u.contact_type as contactType, 
+           u.contact_value as contactValue, u.is_verified as isVerified, 
+           u.role, u.created_at as createdAt, u.password_hash as passwordHash
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.id = ?
+  `).get(sessionId);
+
+  if (!row) return null;
+
+  if (new Date(row.expiresAt).getTime() < Date.now()) {
+    deleteSession(sessionId);
+    return null;
+  }
+
+  return {
+    session: {
+      id: row.sessionId,
+      userId: row.userId,
+      expiresAt: row.expiresAt,
+    },
+    user: {
+      id: row.id,
+      displayName: row.displayName,
+      contactType: row.contactType,
+      contactValue: row.contactValue,
+      isVerified: Boolean(row.isVerified),
+      role: row.role,
+      createdAt: row.createdAt,
+      hasPassword: Boolean(row.passwordHash),
+    },
+  };
+}
+
+export function deleteSession(sessionId: string): void {
+  db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+}
+
+export function deleteUserSessions(userId: string): void {
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+}
+
+export function pruneExpiredSessions(): void {
+  try {
+    const nowIso = new Date().toISOString();
+    db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(nowIso);
+    db.prepare('DELETE FROM verification_codes WHERE expires_at < ?').run(nowIso);
+  } catch (_) {}
+}
+
+// One-Time Passcode (OTP) Verification
+export function createVerificationCode(contactType: 'phone' | 'email', contactValue: string): { code: string; expiresAt: string } {
+  // 6-digit numeric OTP
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const id = `vc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 10 * 60 * 1000).toISOString(); // 10 minutes
+  const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
+  // Mark older unused codes as superseded
+  db.prepare('UPDATE verification_codes SET used = 1 WHERE contact_value = ?').run(contactValue);
+
+  db.prepare(`
+    INSERT INTO verification_codes (id, contact_type, contact_value, code_hash, expires_at, used, created_at)
+    VALUES (?, ?, ?, ?, ?, 0, ?)
+  `).run(id, contactType, contactValue, codeHash, expiresAt, now.toISOString());
+
+  return { code, expiresAt };
+}
+
+export function verifyCode(contactType: 'phone' | 'email', contactValue: string, code: string): boolean {
+  const codeHash = crypto.createHash('sha256').update(code.trim()).digest('hex');
+  const now = new Date().toISOString();
+
+  const record: any = db.prepare(`
+    SELECT id FROM verification_codes
+    WHERE contact_value = ? AND code_hash = ? AND used = 0 AND expires_at > ?
+    ORDER BY created_at DESC LIMIT 1
+  `).get(contactValue, codeHash, now);
+
+  if (!record) return false;
+
+  db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(record.id);
+  return true;
+}
+
+// Password-based User Registration & Verification
+export function registerWithPassword(displayName: string, contactType: 'phone' | 'email', contactValue: string, password: string): User {
+  const existing: any = db.prepare('SELECT * FROM users WHERE contact_value = ?').get(contactValue);
+  const { salt, hash } = hashPassword(password);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    db.prepare(`
+      UPDATE users 
+      SET display_name = ?, password_salt = ?, password_hash = ?, is_verified = 1
+      WHERE id = ?
+    `).run(displayName, salt, hash, existing.id);
+    return getUserById(existing.id)!;
+  }
+
+  const id = `user-${Date.now()}`;
+  db.prepare(`
+    INSERT INTO users (id, display_name, contact_type, contact_value, is_verified, role, password_salt, password_hash, created_at)
+    VALUES (?, ?, ?, ?, 1, 'user', ?, ?, ?)
+  `).run(id, displayName, contactType, contactValue, salt, hash, now);
+
+  return getUserById(id)!;
+}
+
+export function verifyPassword(contactValue: string, password: string): User | null {
+  const row: any = db.prepare('SELECT * FROM users WHERE contact_value = ?').get(contactValue);
+  if (!row || !row.password_hash || !row.password_salt) return null;
+
+  const isValid = verifyPasswordHash(password, row.password_salt, row.password_hash);
+  if (!isValid) return null;
+
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    contactType: row.contact_type,
+    contactValue: row.contact_value,
+    isVerified: Boolean(row.is_verified),
+    role: row.role,
+    createdAt: row.created_at,
+    hasPassword: true,
+  };
+}
+
+export function setPassword(userId: string, password: string): void {
+  const { salt, hash } = hashPassword(password);
+  db.prepare('UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ?').run(salt, hash, userId);
+}
+
 // Database Query Helpers
 export function getAllUsers(): User[] {
-  const rows = db.prepare('SELECT id, display_name as displayName, contact_type as contactType, contact_value as contactValue, is_verified as isVerified, role, created_at as createdAt FROM users').all();
+  const rows = db.prepare('SELECT id, display_name as displayName, contact_type as contactType, contact_value as contactValue, is_verified as isVerified, role, password_hash as passwordHash, created_at as createdAt FROM users').all();
   return rows.map((r: any) => ({
-    ...r,
+    id: r.id,
+    displayName: r.displayName,
+    contactType: r.contactType,
+    contactValue: r.contactValue,
     isVerified: Boolean(r.isVerified),
+    role: r.role,
+    createdAt: r.createdAt,
+    hasPassword: Boolean(r.passwordHash),
   }));
 }
 
 export function getUserById(id: string): User | null {
-  const row: any = db.prepare('SELECT id, display_name as displayName, contact_type as contactType, contact_value as contactValue, is_verified as isVerified, role, created_at as createdAt FROM users WHERE id = ?').get(id);
+  const row: any = db.prepare('SELECT id, display_name as displayName, contact_type as contactType, contact_value as contactValue, is_verified as isVerified, role, password_hash as passwordHash, created_at as createdAt FROM users WHERE id = ?').get(id);
   if (!row) return null;
   return {
-    ...row,
+    id: row.id,
+    displayName: row.displayName,
+    contactType: row.contactType,
+    contactValue: row.contactValue,
     isVerified: Boolean(row.isVerified),
+    role: row.role,
+    createdAt: row.createdAt,
+    hasPassword: Boolean(row.passwordHash),
   };
 }
 
@@ -521,7 +739,7 @@ export function createOrVerifyUser(displayName: string, contactType: 'phone' | '
   
   if (existing) {
     db.prepare('UPDATE users SET is_verified = 1, display_name = ? WHERE id = ?').run(displayName, existing.id);
-    return { ...existing, displayName, isVerified: true };
+    return getUserById(existing.id)!;
   }
 
   const id = `user-${Date.now()}`;
@@ -531,15 +749,7 @@ export function createOrVerifyUser(displayName: string, contactType: 'phone' | '
     VALUES (?, ?, ?, ?, 1, 'user', ?)
   `).run(id, displayName, contactType, contactValue, now);
 
-  return {
-    id,
-    displayName,
-    contactType,
-    contactValue,
-    isVerified: true,
-    role: 'user',
-    createdAt: now,
-  };
+  return getUserById(id)!;
 }
 
 export function getSpaces(filters?: { city?: string; occasionType?: string; status?: string; query?: string }): Space[] {

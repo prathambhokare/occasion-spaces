@@ -26,7 +26,7 @@ export default function PlatformSafetyPage() {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const isModerator = currentUser.role === 'platform_moderator';
+  const isModerator = Boolean(currentUser?.role === 'platform_moderator');
 
   const loadReports = async () => {
     try {
@@ -62,7 +62,7 @@ export default function PlatformSafetyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reportId: selectedReport.id,
-          reviewerUserId: currentUser.id,
+          reviewerUserId: currentUser?.id || 'user-anita',
           action: actionType,
           notes: moderatorNotes.trim() || undefined,
         }),
@@ -117,7 +117,7 @@ export default function PlatformSafetyPage() {
           <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs">
             <span className="text-stone-400">Moderator:</span>
             <span className="font-semibold text-stone-800 dark:text-stone-200">
-              {currentUser.displayName}
+              {currentUser?.displayName || 'Guest Reviewer'}
             </span>
             {isModerator ? (
               <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold text-[10px]">
@@ -141,7 +141,7 @@ export default function PlatformSafetyPage() {
           <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
             <Info className="w-4 h-4 shrink-0" />
             <span>
-              You are currently viewing as a regular participant (<strong>{currentUser.displayName}</strong>). To take triage actions (takedowns, dismissals), switch to a platform safety moderator.
+              You are currently viewing as {currentUser ? `a regular participant (${currentUser.displayName})` : 'a guest'}. To take triage actions (takedowns, dismissals), switch to a platform safety moderator.
             </span>
           </div>
           <button

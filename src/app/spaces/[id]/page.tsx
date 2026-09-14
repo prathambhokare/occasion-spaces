@@ -38,7 +38,7 @@ export default function SpaceDetailPage({
 }) {
   const router = useRouter();
   const { id: spaceIdParam } = use(params);
-  const { currentUser, allUsers } = useAuth();
+  const { currentUser, allUsers, openAuthModal } = useAuth();
 
   // Space & Feed State
   const [space, setSpace] = useState<Space | null>(null);
@@ -113,7 +113,8 @@ export default function SpaceDetailPage({
       setEditPostsRequireApproval(Boolean(data.space.postsRequireApproval));
 
       // Fetch contributions
-      const contRes = await fetch(`/api/spaces/${data.space.id}/contributions?userId=${currentUser.id}&sort=${sortBy}`);
+      const userIdParam = currentUser ? currentUser.id : '';
+      const contRes = await fetch(`/api/spaces/${data.space.id}/contributions?userId=${userIdParam}&sort=${sortBy}`);
       const contData = await contRes.json();
       if (contRes.ok) {
         setContributions(contData.contributions || []);
@@ -126,18 +127,23 @@ export default function SpaceDetailPage({
         setAnnouncements(annData.announcements || []);
       }
 
-      // Fetch participant status
-      const partRes = await fetch(`/api/spaces/${data.space.id}/join?userId=${currentUser.id}`);
-      const partData = await partRes.json();
-      if (partRes.ok) {
-        setParticipant(partData.participant);
-      }
+      // Fetch participant status & blocked users
+      if (currentUser) {
+        const partRes = await fetch(`/api/spaces/${data.space.id}/join?userId=${currentUser.id}`);
+        const partData = await partRes.json();
+        if (partRes.ok) {
+          setParticipant(partData.participant);
+        }
 
-      // Fetch blocked users for current user
-      const blockRes = await fetch(`/api/users/block?userId=${currentUser.id}`);
-      const blockData = await blockRes.json();
-      if (blockRes.ok) {
-        setBlockedUserIds(blockData.blockedUserIds || []);
+        // Fetch blocked users for current user
+        const blockRes = await fetch(`/api/users/block?userId=${currentUser.id}`);
+        const blockData = await blockRes.json();
+        if (blockRes.ok) {
+          setBlockedUserIds(blockData.blockedUserIds || []);
+        }
+      } else {
+        setParticipant(null);
+        setBlockedUserIds([]);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Error loading space');
@@ -148,11 +154,11 @@ export default function SpaceDetailPage({
 
   useEffect(() => {
     loadSpaceData();
-  }, [spaceIdParam, currentUser.id, sortBy]);
+  }, [spaceIdParam, currentUser?.id, sortBy]);
 
   // Load organizer dashboard data when drawer opens
   const loadOrganizerData = async () => {
-    if (!space) return;
+    if (!space || !currentUser) return;
     try {
       const res = await fetch(`/api/spaces/${space.id}/moderation?userId=${currentUser.id}`);
       const data = await res.json();
@@ -172,12 +178,16 @@ export default function SpaceDetailPage({
     }
   }, [organizerSuiteOpen]);
 
-  const isOrganizer = space && (space.createdByUserId === currentUser.id || participant?.role === 'organizer');
-  const isSpaceActive = space && isSpaceOpenForContributions(space.status || 'live');
+  const isOrganizer = Boolean(space && currentUser && (space.createdByUserId === currentUser.id || participant?.role === 'organizer'));
+  const isSpaceActive = Boolean(space && isSpaceOpenForContributions(space.status || 'live'));
 
   // Handle Join Space (FR8, FR9, FR11)
   const handleJoinSpace = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!currentUser) {
+      openAuthModal('otp');
+      return;
+    }
     setInviteCodeError('');
     if (!space) return;
 
@@ -205,7 +215,7 @@ export default function SpaceDetailPage({
 
   // Handle Leave Space (FR10)
   const handleLeaveSpace = async () => {
-    if (!space) return;
+    if (!space || !currentUser) return;
     if (!confirm('Leave this occasion space? You can rejoin at any time.')) return;
 
     try {
@@ -221,6 +231,10 @@ export default function SpaceDetailPage({
   const handleCelebrate = async (e: React.MouseEvent, contributionId: string) => {
     triggerCelebrationAnimation(e);
     if (!space) return;
+    if (!currentUser) {
+      openAuthModal('otp');
+      return;
+    }
 
     try {
       const res = await fetch(`/api/spaces/${space.id}/celebrate`, {
@@ -252,6 +266,10 @@ export default function SpaceDetailPage({
 
   const handleAcknowledgeGuidelines = async () => {
     if (!space) return;
+    if (!currentUser) {
+      openAuthModal('otp');
+      return;
+    }
     setAcknowledgingGuidelines(true);
     try {
       const res = await fetch(`/api/spaces/${space.id}/join`, {
@@ -284,6 +302,10 @@ export default function SpaceDetailPage({
   const handleSubmitContribution = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!space) return;
+    if (!currentUser) {
+      openAuthModal('otp');
+      return;
+    }
 
     // Check guidelines acknowledgment first
     if (!participant?.guidelinesAcknowledgedAt) {
@@ -330,7 +352,7 @@ export default function SpaceDetailPage({
 
   // Handle Delete Contribution (FR15, FR27)
   const handleDeleteContribution = async (contributionId: string) => {
-    if (!space) return;
+    if (!space || !currentUser) return;
     if (!confirm('Remove this contribution from the occasion space?')) return;
 
     try {
@@ -347,6 +369,10 @@ export default function SpaceDetailPage({
 
   // Handle Block User (FR32)
   const handleToggleBlock = async (targetUserId: string) => {
+    if (!currentUser) {
+      openAuthModal('otp');
+      return;
+    }
     try {
       const res = await fetch('/api/users/block', {
         method: 'POST',
@@ -369,7 +395,7 @@ export default function SpaceDetailPage({
   // Organizer: Post Announcement (FR39)
   const handlePostAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!space || !newAnnouncementTitle || !newAnnouncementContent) return;
+    if (!space || !currentUser || !newAnnouncementTitle || !newAnnouncementContent) return;
 
     setSubmittingAnnouncement(true);
     try {
@@ -399,7 +425,7 @@ export default function SpaceDetailPage({
 
   // Organizer: Moderation actions (approve/reject pending, ban user) (FR27)
   const handleModerateContribution = async (action: 'approve_contribution' | 'reject_contribution' | 'remove_contribution', targetContributionId: string) => {
-    if (!space) return;
+    if (!space || !currentUser) return;
     try {
       const res = await fetch(`/api/spaces/${space.id}/moderation`, {
         method: 'POST',
@@ -421,7 +447,7 @@ export default function SpaceDetailPage({
   };
 
   const handleSetUserBan = async (targetUserId: string, ban: boolean) => {
-    if (!space) return;
+    if (!space || !currentUser) return;
     try {
       const res = await fetch(`/api/spaces/${space.id}/moderation`, {
         method: 'POST',
@@ -447,7 +473,7 @@ export default function SpaceDetailPage({
   // Organizer: Update Space Settings & Transfer Ownership (FR4, FR5, FR7, FR27)
   const handleUpdateSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!space) return;
+    if (!space || !currentUser) return;
     setUpdatingSettings(true);
 
     try {
@@ -703,6 +729,10 @@ export default function SpaceDetailPage({
               ) : (
                 <button
                   onClick={() => {
+                    if (!currentUser) {
+                      openAuthModal('otp');
+                      return;
+                    }
                     if (space.visibility === 'invite_only' && space.createdByUserId !== currentUser.id) {
                       setInviteModalOpen(true);
                     } else {
@@ -885,7 +915,7 @@ export default function SpaceDetailPage({
       {visibleContributions.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {visibleContributions.map((item) => {
-            const isMyContribution = item.userId === currentUser.id;
+            const isMyContribution = Boolean(currentUser && item.userId === currentUser.id);
             const canDelete = isMyContribution || isOrganizer;
 
             return (
@@ -1196,8 +1226,8 @@ export default function SpaceDetailPage({
 
               {/* Contributor Identity notice (FR9, FR22) */}
               <div className="p-3 rounded-xl bg-stone-50 dark:bg-stone-800/40 text-[11px] text-stone-500 flex items-center justify-between">
-                <span>Contributing as: <strong>{currentUser.displayName}</strong></span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Verified {currentUser.contactType}</span>
+                <span>Contributing as: <strong>{currentUser?.displayName || 'Attendee'}</strong></span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Verified {currentUser?.contactType || 'Guest'}</span>
               </div>
 
               {/* Submit */}
@@ -1453,7 +1483,7 @@ export default function SpaceDetailPage({
 
                   <div className="divide-y divide-stone-100 dark:divide-stone-800 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden">
                     {participantsList.map((p) => {
-                      const isSelf = p.userId === currentUser.id;
+                      const isSelf = Boolean(currentUser && p.userId === currentUser.id);
                       return (
                         <div key={p.userId} className="p-3.5 flex items-center justify-between text-xs bg-white dark:bg-stone-900">
                           <div>
@@ -1591,7 +1621,7 @@ export default function SpaceDetailPage({
                         onChange={(e) => setTransferOwnerId(e.target.value)}
                         className="w-full text-xs p-2.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-stone-900"
                       >
-                        <option value="">Keep current owner ({space.creatorName || currentUser.displayName})</option>
+                        <option value="">Keep current owner ({space.creatorName || currentUser?.displayName || 'Organizer'})</option>
                         {allUsers
                           .filter((u) => u.id !== space.createdByUserId)
                           .map((u) => (

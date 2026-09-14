@@ -40,7 +40,7 @@ interface UserHistoryData {
 }
 
 export default function MyOccasionsPage() {
-  const { currentUser, switchUserById, allUsers } = useAuth();
+  const { currentUser, switchUserById, allUsers, openAuthModal } = useAuth();
   
   const [history, setHistory] = useState<UserHistoryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +48,10 @@ export default function MyOccasionsPage() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   const loadHistory = async () => {
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await fetch(`/api/users/history?userId=${currentUser.id}`);
@@ -70,13 +74,15 @@ export default function MyOccasionsPage() {
 
   useEffect(() => {
     loadHistory();
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
 
   const handleExportMyData = () => {
+    if (!currentUser) return;
     window.location.href = `/api/export?type=user&id=${currentUser.id}`;
   };
 
   const handleUnblock = async (targetUserId: string) => {
+    if (!currentUser) return;
     try {
       const res = await fetch('/api/users/block', {
         method: 'POST',
@@ -90,6 +96,54 @@ export default function MyOccasionsPage() {
       console.error('Failed to unblock user:', err);
     }
   };
+
+  if (!currentUser) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center space-y-6">
+        <div className="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-xs">
+          <Calendar className="w-8 h-8" />
+        </div>
+        <div className="space-y-2 max-w-md mx-auto">
+          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">
+            Sign In to Access Your Occasions
+          </h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+            Occasion Spaces are private and ephemeral. Sign in with a quick 6-digit OTP or password to view the occasions you joined, memories you shared, and privacy settings.
+          </p>
+        </div>
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            onClick={() => openAuthModal('otp')}
+            className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 rounded-xl shadow-md transition-all"
+          >
+            Sign In with 6-Digit OTP
+          </button>
+          <button
+            onClick={() => openAuthModal('password')}
+            className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-all"
+          >
+            Password Sign In / Register
+          </button>
+        </div>
+        {allUsers.length > 0 && (
+          <div className="pt-6 border-t border-stone-200/80 dark:border-stone-800 max-w-md mx-auto">
+            <p className="text-[11px] text-stone-400 mb-2">Or instant 1-click test as demo persona:</p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {allUsers.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => switchUserById(u.id)}
+                  className="px-3 py-1 text-xs rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-amber-950/40 text-stone-700 dark:text-stone-300 font-medium transition-colors"
+                >
+                  {u.displayName.split(' ')[0]} ({u.role === 'platform_moderator' ? 'Safety' : 'Attendee'})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
