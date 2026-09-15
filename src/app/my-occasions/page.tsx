@@ -113,14 +113,16 @@ export default function MyOccasionsPage() {
         </div>
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
+            type="button"
             onClick={() => openAuthModal('otp')}
-            className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 rounded-xl shadow-md transition-all"
+            className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 rounded-xl shadow-md transition-all cursor-pointer"
           >
             Sign In with 6-Digit OTP
           </button>
           <button
+            type="button"
             onClick={() => openAuthModal('password')}
-            className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-all"
+            className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-all cursor-pointer"
           >
             Password Sign In / Register
           </button>

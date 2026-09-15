@@ -196,15 +196,17 @@ export function Navbar() {
               /* Unauthenticated Guest Actions */
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => openAuthModal('otp')}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5 text-amber-600" />
                   Sign In
                 </button>
                 <button
+                  type="button"
                   onClick={() => openAuthModal('register')}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   Join Occasion
                 </button>
@@ -250,20 +252,22 @@ export function Navbar() {
             {!isAuthenticated && (
               <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex gap-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
                     openAuthModal('otp');
                   }}
-                  className="w-1/2 py-2 text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-stone-700 rounded-xl"
+                  className="w-1/2 py-2 text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-stone-700 rounded-xl cursor-pointer"
                 >
                   Sign In
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
                     openAuthModal('register');
                   }}
-                  className="w-1/2 py-2 text-xs font-semibold text-white bg-amber-600 rounded-xl"
+                  className="w-1/2 py-2 text-xs font-semibold text-white bg-amber-600 rounded-xl cursor-pointer"
                 >
                   Join Occasion
                 </button>
