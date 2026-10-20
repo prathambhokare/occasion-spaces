@@ -1,11 +1,25 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { Navbar } from "@/components/Navbar";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#d97706",
+};
+
 export const metadata: Metadata = {
   title: "Occasion Spaces — Temporary Digital Spaces for Shared Occasions",
   description: "The occasion is the primary identity. Temporary digital spaces for cultural festivals, weddings, and community moments without permanent social network bloat.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Occasion Spaces",
+  },
 };
 
 export default function RootLayout({

@@ -4,8 +4,9 @@ import {
   deleteContribution, getParticipant, getUserById, 
   acknowledgeGuidelines 
 } from '@/lib/db';
-import { checkContentSafety, checkRateLimit } from '@/lib/safety';
+import { checkContentSafety, checkRateLimit, sanitizeText } from '@/lib/safety';
 import { isSpaceOpenForContributions } from '@/lib/lifecycle';
+import { verifyUserAuthorization } from '@/lib/auth-server';
 
 export async function GET(
   req: NextRequest,
@@ -44,7 +45,13 @@ export async function POST(
       return NextResponse.json({ error: 'Missing required contribution details' }, { status: 400 });
     }
 
-    const user = getUserById(userId);
+    // Verify authenticated session authorization
+    const authCheck = await verifyUserAuthorization(req, userId);
+    if (!authCheck.authorized) {
+      return NextResponse.json({ error: authCheck.error || 'Authentication required to contribute.' }, { status: 403 });
+    }
+
+    const user = authCheck.user || getUserById(userId);
     if (!user || !user.isVerified) {
       return NextResponse.json({ error: 'A verified phone or email is required before contributing to this occasion.' }, { status: 403 });
     }
@@ -86,8 +93,10 @@ export async function POST(
       }, { status: 429 });
     }
 
+    const sanitizedCaption = sanitizeText(caption);
+
     // 5. Automated Content Safety Filter (FR30)
-    const safetyCheck = checkContentSafety(caption);
+    const safetyCheck = checkContentSafety(sanitizedCaption);
     if (!safetyCheck.allowed) {
       return NextResponse.json({ 
         error: safetyCheck.reason, 
@@ -97,17 +106,17 @@ export async function POST(
 
     // 6. Approval Mode check (FR27)
     // If space requires approval and user is not organizer, set status to pending_approval
-    const isOrganizer = space.createdByUserId === userId || participant?.role === 'organizer';
+    const isOrganizer = space.createdByUserId === user.id || participant?.role === 'organizer';
     const status = (space.postsRequireApproval && !isOrganizer) ? 'pending_approval' : 'approved';
 
     const contribution = createContribution({
       spaceId: space.id,
-      userId,
+      userId: user.id,
       type,
-      mediaUrl: mediaUrl || undefined,
-      caption: caption.trim(),
+      mediaUrl: mediaUrl?.trim() || undefined,
+      caption: sanitizedCaption,
       status,
-      dayBucket,
+      dayBucket: dayBucket ? sanitizeText(dayBucket) : undefined,
     });
 
     const message = status === 'pending_approval' 
@@ -134,16 +143,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'Missing contribution ID or user ID' }, { status: 400 });
     }
 
+    // Verify authorized session
+    const authCheck = await verifyUserAuthorization(req, userId);
+    if (!authCheck.authorized) {
+      return NextResponse.json({ error: authCheck.error || 'Unauthorized to remove contribution.' }, { status: 403 });
+    }
+
     const space = getSpaceById(id);
     if (!space) {
       return NextResponse.json({ error: 'Space not found' }, { status: 404 });
     }
 
-    const participant = getParticipant(space.id, userId);
-    const isOrganizer = space.createdByUserId === userId || participant?.role === 'organizer';
-
     // deleteContribution allows author or organizer
-    const success = deleteContribution(contributionId, userId);
+    const success = deleteContribution(contributionId, authCheck.user ? authCheck.user.id : userId);
     if (!success) {
       return NextResponse.json({ error: 'Contribution not found or could not be removed' }, { status: 404 });
     }

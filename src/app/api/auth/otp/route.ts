@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createVerificationCode, verifyCode, createOrVerifyUser, createSession, getUserById } from '@/lib/db';
+import { checkOtpRateLimit, recordOtpVerifyAttempt } from '@/lib/safety';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +24,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'send') {
+      // 1. Rate-limit OTP requests (max 3 per 10 minutes per recipient)
+      const rateCheck = checkOtpRateLimit(cleanContactValue, 3, 10);
+      if (!rateCheck.allowed) {
+        return NextResponse.json(
+          { error: `Too many verification requests. Please try again in ${rateCheck.retryAfterSeconds} seconds.` },
+          { status: 429 }
+        );
+      }
+
       const { code: generatedCode, expiresAt } = createVerificationCode(contactType, cleanContactValue);
 
       // Log OTP code for observability and testing
@@ -33,12 +43,15 @@ export async function POST(req: NextRequest) {
       console.log(`Expires At: ${expiresAt}`);
       console.log(`========================================\n`);
 
+      // In production, only expose previewCode if explicit demo mode is set
+      const isProduction = process.env.NODE_ENV === 'production';
+      const allowPreview = !isProduction || process.env.ALLOW_DEMO_AUTH === 'true';
+
       return NextResponse.json({
         success: true,
         message: `Verification code dispatched to ${cleanContactValue}`,
         expiresAt,
-        // Provide previewCode for frictionless testing and demonstration
-        previewCode: generatedCode,
+        ...(allowPreview ? { previewCode: generatedCode } : {}),
       });
     }
 
@@ -47,10 +60,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Verification code is required' }, { status: 400 });
       }
 
+      // Check brute-force attempts
+      const attemptCheck = recordOtpVerifyAttempt(cleanContactValue, false);
+      if (!attemptCheck.allowed) {
+        return NextResponse.json(
+          { error: 'Maximum verification attempts exceeded. Please request a new verification code.' },
+          { status: 429 }
+        );
+      }
+
       const isValid = verifyCode(contactType, cleanContactValue, code.trim());
       if (!isValid) {
-        return NextResponse.json({ error: 'Invalid or expired verification code. Please check or request a new code.' }, { status: 400 });
+        return NextResponse.json(
+          { 
+            error: `Invalid or expired verification code. (${attemptCheck.remainingAttempts} attempts remaining)` 
+          }, 
+          { status: 400 }
+        );
       }
+
+      // Verification successful: reset failed attempt counter
+      recordOtpVerifyAttempt(cleanContactValue, true);
 
       const user = createOrVerifyUser(
         displayName?.trim() || cleanContactValue.split('@')[0] || 'Attendee',

@@ -3,6 +3,8 @@ import {
   getReports, createReport, updateReportStatus, 
   updateContributionStatus, getUserById 
 } from '@/lib/db';
+import { verifyUserAuthorization } from '@/lib/auth-server';
+import { sanitizeText } from '@/lib/safety';
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,12 +27,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required report fields' }, { status: 400 });
     }
 
+    // Verify session authorization
+    const authCheck = await verifyUserAuthorization(req, reportedByUserId);
+    if (!authCheck.authorized) {
+      return NextResponse.json({ error: authCheck.error || 'Authentication required to submit reports.' }, { status: 403 });
+    }
+
     const report = createReport({
       contributionId,
       spaceId,
-      reportedByUserId,
+      reportedByUserId: authCheck.user ? authCheck.user.id : reportedByUserId,
       category,
-      details: details?.trim() || 'No additional details provided.',
+      details: details ? sanitizeText(details) : 'No additional details provided.',
     });
 
     return NextResponse.json({ 
@@ -51,7 +59,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Missing review action parameters' }, { status: 400 });
     }
 
-    const reviewer = getUserById(reviewerUserId);
+    // Verify moderator session
+    const authCheck = await verifyUserAuthorization(req, reviewerUserId);
+    const reviewer = authCheck.user || getUserById(reviewerUserId);
     if (!reviewer || reviewer.role !== 'platform_moderator') {
       return NextResponse.json({ error: 'Only designated platform safety moderators can act on this queue' }, { status: 403 });
     }

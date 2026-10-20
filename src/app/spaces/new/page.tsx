@@ -8,6 +8,7 @@ import {
   ArrowLeft, Info 
 } from 'lucide-react';
 import Link from 'next/link';
+import { PhotoUploader } from '@/components/PhotoUploader';
 
 const PRESET_COVERS = [
   { label: 'Traditional Festival (Aarti / Lights)', url: 'https://images.unsplash.com/photo-1567591414240-e9c1e59f3e06?auto=format&fit=crop&w=1200&q=80' },
@@ -237,34 +238,14 @@ export default function NewSpacePage() {
           </div>
         </div>
 
-        {/* Cover Image Selection */}
-        <div className="space-y-3">
-          <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300">
-            Cover Image
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {PRESET_COVERS.map((preset, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setCoverImageUrl(preset.url)}
-                className={`relative h-20 rounded-xl overflow-hidden border-2 transition-all ${
-                  coverImageUrl === preset.url ? 'border-amber-500 ring-2 ring-amber-400/30' : 'border-transparent opacity-75 hover:opacity-100'
-                }`}
-              >
-                <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
-                <span className="absolute inset-0 bg-stone-900/40 p-1 text-[10px] text-white flex items-end">
-                  {preset.label.split(' ')[0]}
-                </span>
-              </button>
-            ))}
-          </div>
-          <input
-            type="url"
+        {/* Cover Image Selection with Real Upload / Presets */}
+        <div className="space-y-2">
+          <PhotoUploader
             value={coverImageUrl}
-            onChange={(e) => setCoverImageUrl(e.target.value)}
-            placeholder="Or paste a custom image URL..."
-            className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+            onChange={(url) => setCoverImageUrl(url)}
+            presets={PRESET_COVERS}
+            label="Occasion Cover Banner"
+            helperText="Upload your festival banner, wedding invitation card, or pick a curated cultural preset."
           />
         </div>
 

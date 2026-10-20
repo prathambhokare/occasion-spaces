@@ -11,6 +11,8 @@ import { useAuth } from '@/context/AuthContext';
 import { StatusBadge } from '@/components/StatusBadge';
 import { GuidelinesModal } from '@/components/GuidelinesModal';
 import { ReportModal } from '@/components/ReportModal';
+import { PhotoUploader } from '@/components/PhotoUploader';
+import { QRCodeModal } from '@/components/QRCodeModal';
 import { triggerCelebrationAnimation } from '@/lib/confetti';
 import { formatTimeRemaining, formatTimeUntilStart, isSpaceOpenForContributions } from '@/lib/lifecycle';
 import { 
@@ -19,7 +21,7 @@ import {
   Sparkles, Filter, Clock, Plus, Trash2, Flag, 
   UserX, CheckCircle, AlertOctagon, X, Settings, 
   Check, Info, UserCheck, Image as ImageIcon, 
-  FileText, Video, Eye
+  FileText, Video, Eye, QrCode
 } from 'lucide-react';
 
 const PRESET_CONTRIBUTION_IMAGES = [
@@ -61,6 +63,7 @@ export default function SpaceDetailPage({
   const [organizerSuiteOpen, setOrganizerSuiteOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // Contribution Form State (FR12, FR13, FR16)
   const [contributionType, setContributionType] = useState<ContributionType>('photo');
@@ -591,10 +594,20 @@ export default function SpaceDetailPage({
           {/* Share Link */}
           <button
             onClick={handleCopyLink}
-            className="px-3 py-1.5 text-xs rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 text-xs rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Share2 className="w-3.5 h-3.5" />}
             <span>{copiedLink ? 'Link Copied!' : 'Share Occasion'}</span>
+          </button>
+
+          {/* QR Code & Print Table Card */}
+          <button
+            onClick={() => setQrModalOpen(true)}
+            className="px-3 py-1.5 text-xs rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Generate and print QR code for event tables or venue displays"
+          >
+            <QrCode className="w-3.5 h-3.5 text-amber-600" />
+            <span>QR Code</span>
           </button>
 
           {/* Export Space Archive (FR37) */}
@@ -1153,37 +1166,15 @@ export default function SpaceDetailPage({
                 </div>
               </div>
 
-              {/* Media Selection (For Photo / Clip) */}
+              {/* Real Media Upload (Camera Capture, File Upload, or Preset Fallback) */}
               {contributionType !== 'note' && (
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block">
-                    Select Curated Occasion Photo or Paste URL
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {PRESET_CONTRIBUTION_IMAGES.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setMediaUrl(preset.url)}
-                        className={`relative h-16 rounded-xl overflow-hidden border-2 transition-all ${
-                          mediaUrl === preset.url ? 'border-amber-500 ring-2 ring-amber-400/30' : 'border-transparent opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
-                        <span className="absolute inset-0 bg-stone-900/50 p-1 text-[9px] text-white flex items-end">
-                          {preset.label.split(' ')[0]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    type="url"
-                    value={mediaUrl}
-                    onChange={(e) => setMediaUrl(e.target.value)}
-                    placeholder="Or paste an image URL..."
-                    className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                  />
-                </div>
+                <PhotoUploader
+                  value={mediaUrl}
+                  onChange={(url) => setMediaUrl(url)}
+                  presets={PRESET_CONTRIBUTION_IMAGES}
+                  label="Attach Photo or Memory"
+                  helperText="Snap a live picture from your camera, choose from your gallery, or pick a sample preset."
+                />
               )}
 
               {/* Day Bucket selection (FR17) */}
@@ -1790,6 +1781,19 @@ export default function SpaceDetailPage({
           spaceId={space.id}
           contributionCaption={reportModalData.caption}
           authorName={reportModalData.author}
+        />
+      )}
+
+      {/* QR Code & Printable Table Stand Modal */}
+      {space && (
+        <QRCodeModal
+          isOpen={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+          spaceName={space.name}
+          spaceUrl={typeof window !== 'undefined' ? `${window.location.origin}/spaces/${space.id}` : `https://occasion-spaces.onrender.com/spaces/${space.id}`}
+          venue={space.venue}
+          city={space.city}
+          inviteCode={space.visibility === 'invite_only' ? space.inviteCode : undefined}
         />
       )}
 

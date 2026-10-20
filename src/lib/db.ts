@@ -20,6 +20,24 @@ db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 15000');
 db.pragma('foreign_keys = ON');
 
+// Ensure uploads directory exists for user media
+const uploadsDir = process.env.UPLOADS_PATH || path.resolve(process.cwd(), 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Graceful SQLite WAL flush and connection closure on container termination
+const gracefulShutdown = () => {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.close();
+  } catch {
+    // Process exiting
+  }
+};
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
 // Initialize Schema
 export function initDb() {
   db.exec(`
