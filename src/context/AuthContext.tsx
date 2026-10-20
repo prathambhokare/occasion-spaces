@@ -9,8 +9,8 @@ export interface AuthContextType {
   isLoading: boolean;
   allUsers: User[];
   authModalOpen: boolean;
-  authModalInitialTab: 'otp' | 'password' | 'register';
-  openAuthModal: (initialTab?: 'otp' | 'password' | 'register') => void;
+  authModalInitialTab: 'login' | 'register';
+  openAuthModal: (initialTab?: 'login' | 'register' | 'password' | 'otp') => void;
   closeAuthModal: () => void;
   sendOtp: (contactType: 'phone' | 'email', contactValue: string) => Promise<{ previewCode?: string; message: string }>;
   verifyOtp: (displayName: string, contactType: 'phone' | 'email', contactValue: string, code: string) => Promise<User>;
@@ -30,10 +30,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authModalInitialTab, setAuthModalInitialTab] = useState<'otp' | 'password' | 'register'>('otp');
+  const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register'>('login');
 
-  const openAuthModal = useCallback((initialTab: 'otp' | 'password' | 'register' = 'otp') => {
-    setAuthModalInitialTab(initialTab);
+  const openAuthModal = useCallback((initialTab?: 'login' | 'register' | 'password' | 'otp') => {
+    const tab: 'login' | 'register' = initialTab === 'register' ? 'register' : 'login';
+    setAuthModalInitialTab(tab);
     setAuthModalOpen(true);
   }, []);
 
@@ -41,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthModalOpen(false);
   }, []);
 
-  // Fetch all users (for demo switcher and mentions)
+  // Fetch all users (for space transfer and mentions)
   const refreshUsersList = async () => {
     try {
       const res = await fetch('/api/auth');
@@ -70,9 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.error || 'Verification failed');
     }
     setCurrentUser(data.user);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('occasion_active_user_id', data.user.id);
-    }
     await refreshUsersList();
     return data.user;
   }, []);
@@ -86,26 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.user) {
         setCurrentUser(data.user);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('occasion_active_user_id', data.user.id);
-        }
       } else {
-        // Fallback: check if previous local demo user exists and auto-authenticate
-        const storedId = typeof window !== 'undefined' ? localStorage.getItem('occasion_active_user_id') : null;
-        if (storedId) {
-          try {
-            const demoRes = await fetch('/api/auth');
-            const demoData = await demoRes.json();
-            const matched = demoData.users?.find((u: User) => u.id === storedId);
-            if (matched) {
-              // Establish session for the stored demo user
-              await verifyAndLogin(matched.displayName, matched.contactType, matched.contactValue);
-              return;
-            }
-          } catch {
-            // Ignore session fallback error
-          }
-        }
         setCurrentUser(null);
       }
     } catch (err) {
@@ -114,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [verifyAndLogin]);
+  }, []);
 
   useEffect(() => {
     refreshSession();

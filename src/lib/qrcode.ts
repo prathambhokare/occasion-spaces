@@ -264,3 +264,4 @@ export function generateQRCodeSVG(
     <path d="${pathD.trim()}" fill="${color}" />
   </svg>`;
 }
+

@@ -3,11 +3,16 @@ import {
   getReports, createReport, updateReportStatus, 
   updateContributionStatus, getUserById 
 } from '@/lib/db';
-import { verifyUserAuthorization } from '@/lib/auth-server';
+import { verifyUserAuthorization, getAuthenticatedUser } from '@/lib/auth-server';
 import { sanitizeText } from '@/lib/safety';
 
 export async function GET(req: NextRequest) {
   try {
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser || (authUser.role !== 'admin' && authUser.role !== 'platform_moderator')) {
+      return NextResponse.json({ error: 'Access restricted to platform administrators' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || undefined;
 
@@ -59,11 +64,11 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Missing review action parameters' }, { status: 400 });
     }
 
-    // Verify moderator session
+    // Verify administrator / moderator session
     const authCheck = await verifyUserAuthorization(req, reviewerUserId);
     const reviewer = authCheck.user || getUserById(reviewerUserId);
-    if (!reviewer || reviewer.role !== 'platform_moderator') {
-      return NextResponse.json({ error: 'Only designated platform safety moderators can act on this queue' }, { status: 403 });
+    if (!reviewer || (reviewer.role !== 'admin' && reviewer.role !== 'platform_moderator')) {
+      return NextResponse.json({ error: 'Only designated platform administrators can act on this queue' }, { status: 403 });
     }
 
     const reports = getReports('all');

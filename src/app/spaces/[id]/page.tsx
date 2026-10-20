@@ -188,7 +188,7 @@ export default function SpaceDetailPage({
   const handleJoinSpace = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!currentUser) {
-      openAuthModal('otp');
+      openAuthModal('login');
       return;
     }
     setInviteCodeError('');
@@ -235,7 +235,7 @@ export default function SpaceDetailPage({
     triggerCelebrationAnimation(e);
     if (!space) return;
     if (!currentUser) {
-      openAuthModal('otp');
+      openAuthModal('login');
       return;
     }
 
@@ -270,7 +270,7 @@ export default function SpaceDetailPage({
   const handleAcknowledgeGuidelines = async () => {
     if (!space) return;
     if (!currentUser) {
-      openAuthModal('otp');
+      openAuthModal('login');
       return;
     }
     setAcknowledgingGuidelines(true);
@@ -306,7 +306,7 @@ export default function SpaceDetailPage({
     e.preventDefault();
     if (!space) return;
     if (!currentUser) {
-      openAuthModal('otp');
+      openAuthModal('login');
       return;
     }
 
@@ -373,7 +373,7 @@ export default function SpaceDetailPage({
   // Handle Block User (FR32)
   const handleToggleBlock = async (targetUserId: string) => {
     if (!currentUser) {
-      openAuthModal('otp');
+      openAuthModal('login');
       return;
     }
     try {
@@ -743,7 +743,7 @@ export default function SpaceDetailPage({
                 <button
                   onClick={() => {
                     if (!currentUser) {
-                      openAuthModal('otp');
+                      openAuthModal('login');
                       return;
                     }
                     if (space.visibility === 'invite_only' && space.createdByUserId !== currentUser.id) {

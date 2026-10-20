@@ -5,13 +5,12 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Report } from '@/lib/types';
 import { 
-  Shield, AlertTriangle, CheckCircle2, XCircle, 
-  Flag, Eye, Filter, UserCheck, ArrowLeft, 
-  MapPin, Clock, Info, ShieldAlert, Sparkles 
+  Shield, AlertTriangle, CheckCircle2, 
+  ArrowLeft, MapPin, Clock, ShieldAlert 
 } from 'lucide-react';
 
 export default function PlatformSafetyPage() {
-  const { currentUser, switchUserById, allUsers } = useAuth();
+  const { currentUser, openAuthModal } = useAuth();
 
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +25,7 @@ export default function PlatformSafetyPage() {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const isModerator = Boolean(currentUser?.role === 'platform_moderator');
+  const isAdmin = Boolean(currentUser && (currentUser.role === 'admin' || currentUser.role === 'platform_moderator'));
 
   const loadReports = async () => {
     try {
@@ -45,12 +44,16 @@ export default function PlatformSafetyPage() {
   };
 
   useEffect(() => {
-    loadReports();
-  }, [statusFilter]);
+    if (isAdmin) {
+      loadReports();
+    } else {
+      setLoading(false);
+    }
+  }, [statusFilter, isAdmin]);
 
   const handleExecuteAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedReport || !actionType) return;
+    if (!selectedReport || !actionType || !currentUser) return;
 
     setActioning(true);
     setErrorMessage('');
@@ -62,7 +65,7 @@ export default function PlatformSafetyPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reportId: selectedReport.id,
-          reviewerUserId: currentUser?.id || 'user-anita',
+          reviewerUserId: currentUser.id,
           action: actionType,
           notes: moderatorNotes.trim() || undefined,
         }),
@@ -90,6 +93,49 @@ export default function PlatformSafetyPage() {
     return true;
   });
 
+  if (!isAdmin) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-3xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto shadow-md">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">
+            Administrator Access Required
+          </h1>
+          <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed max-w-md mx-auto">
+            The Platform Safety & Moderation Hub is restricted to verified platform administrators and safety officers.
+          </p>
+        </div>
+
+        {currentUser ? (
+          <div className="p-4 rounded-2xl bg-stone-50 dark:bg-stone-850 border border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-300">
+            Signed in as <strong>{currentUser.displayName}</strong> ({currentUser.contactValue}). Your account does not have platform administration privileges.
+          </div>
+        ) : (
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => openAuthModal('login')}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-semibold text-xs shadow-md transition-all cursor-pointer"
+            >
+              Sign In as Administrator
+            </button>
+          </div>
+        )}
+
+        <div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Return to Explore Occasions
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       
@@ -113,45 +159,18 @@ export default function PlatformSafetyPage() {
             </p>
           </div>
 
-          {/* Current persona indicator */}
+          {/* Current Administrator badge */}
           <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs">
             <span className="text-stone-400">Moderator:</span>
             <span className="font-semibold text-stone-800 dark:text-stone-200">
-              {currentUser?.displayName || 'Guest Reviewer'}
+              {currentUser?.displayName}
             </span>
-            {isModerator ? (
-              <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold text-[10px]">
-                Safety Team
-              </span>
-            ) : (
-              <button
-                onClick={() => switchUserById('user-anita')}
-                className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold text-[10px] hover:underline"
-              >
-                Switch to Anita (Safety Lead)
-              </button>
-            )}
+            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold text-[10px]">
+              Platform Admin
+            </span>
           </div>
         </div>
       </div>
-
-      {/* Role Notice Banner if not moderator */}
-      {!isModerator && (
-        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-            <Info className="w-4 h-4 shrink-0" />
-            <span>
-              You are currently viewing as {currentUser ? `a regular participant (${currentUser.displayName})` : 'a guest'}. To take triage actions (takedowns, dismissals), switch to a platform safety moderator.
-            </span>
-          </div>
-          <button
-            onClick={() => switchUserById('user-anita')}
-            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shrink-0"
-          >
-            Switch to Anita Roy (Safety Lead)
-          </button>
-        </div>
-      )}
 
       {feedbackMessage && (
         <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 text-xs flex items-center gap-2">
@@ -303,7 +322,7 @@ export default function PlatformSafetyPage() {
                   </div>
 
                   {/* Actions Bar */}
-                  {isPending && isModerator && (
+                  {isPending && isAdmin && (
                     <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-3 text-xs">
                       <button
                         onClick={() => {

@@ -12,7 +12,7 @@ export type SpaceStatus = 'upcoming' | 'live' | 'ending_soon' | 'archived' | 'cl
 
 export type ArchiveVisibility = 'public' | 'limited' | 'private';
 
-export type UserRole = 'user' | 'platform_moderator';
+export type UserRole = 'user' | 'platform_moderator' | 'admin';
 
 export type ParticipantRole = 'organizer' | 'participant';
 

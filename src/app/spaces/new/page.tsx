@@ -46,7 +46,7 @@ export default function NewSpacePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
-      openAuthModal('otp');
+      openAuthModal('login');
       return;
     }
 
@@ -125,16 +125,16 @@ export default function NewSpacePage() {
                 You are currently browsing as a guest
               </p>
               <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                Sign in with a quick 6-digit OTP or password so this occasion can be attributed to your organizer profile.
+                Sign in with your password so this occasion can be attributed to your organizer profile.
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => openAuthModal('otp')}
-            className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shrink-0 transition-colors shadow-xs"
+            onClick={() => openAuthModal('login')}
+            className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shrink-0 transition-colors shadow-xs cursor-pointer"
           >
-            Sign In / Verify Identity
+            Sign In / Register
           </button>
         </div>
       )}
@@ -383,7 +383,7 @@ export default function NewSpacePage() {
           <div>
             <span className="text-stone-400 block">Opening as Organizer:</span>
             <span className="font-semibold text-stone-800 dark:text-stone-200">
-              {currentUser ? `${currentUser.displayName} (${currentUser.contactValue})` : 'Guest (Sign in / OTP required on creation)'}
+              {currentUser ? `${currentUser.displayName} (${currentUser.contactValue})` : 'Guest (Sign in required on creation)'}
             </span>
           </div>
           <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${

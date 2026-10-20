@@ -47,7 +47,7 @@ export function initDb() {
       contact_type TEXT NOT NULL CHECK(contact_type IN ('phone', 'email')),
       contact_value TEXT NOT NULL,
       is_verified INTEGER NOT NULL DEFAULT 1,
-      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'platform_moderator')),
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'platform_moderator', 'admin')),
       created_at TEXT NOT NULL
     );
 
@@ -211,54 +211,26 @@ function seedDefaultData() {
   const past7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const past2DaysEnd = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
-  // 1. Seed Users
+  // 1. Seed Platform Administrator
   const insertUser = db.prepare(`
-    INSERT INTO users (id, display_name, contact_type, contact_value, is_verified, role, created_at)
-    VALUES (@id, @displayName, @contactType, @contactValue, @isVerified, @role, @createdAt)
+    INSERT INTO users (id, display_name, contact_type, contact_value, is_verified, role, created_at, password_salt, password_hash)
+    VALUES (@id, @displayName, @contactType, @contactValue, @isVerified, @role, @createdAt, @passwordSalt, @passwordHash)
   `);
 
-  const demoUsers = [
-    {
-      id: 'user-priya',
-      displayName: 'Priya Sharma (Convener)',
-      contactType: 'phone',
-      contactValue: '+91 98201 23456',
-      isVerified: 1,
-      role: 'user',
-      createdAt: past7Days,
-    },
-    {
-      id: 'user-rahul',
-      displayName: 'Rahul Verma',
-      contactType: 'email',
-      contactValue: 'rahul.verma@example.com',
-      isVerified: 1,
-      role: 'user',
-      createdAt: past7Days,
-    },
-    {
-      id: 'user-anita',
-      displayName: 'Anita Roy (Safety Lead)',
-      contactType: 'email',
-      contactValue: 'safety.lead@occasionspaces.org',
-      isVerified: 1,
-      role: 'platform_moderator',
-      createdAt: past7Days,
-    },
-    {
-      id: 'user-samira',
-      displayName: 'Samira Khan',
-      contactType: 'phone',
-      contactValue: '+91 98111 78901',
-      isVerified: 1,
-      role: 'user',
-      createdAt: past7Days,
-    },
-  ];
+  const { salt: adminSalt, hash: adminHash } = hashPassword('admin123');
+  const adminUser = {
+    id: 'user-admin',
+    displayName: 'Platform Administrator',
+    contactType: 'email',
+    contactValue: 'admin@occasionspaces.com',
+    isVerified: 1,
+    role: 'admin',
+    createdAt: past7Days,
+    passwordSalt: adminSalt,
+    passwordHash: adminHash,
+  };
 
-  for (const u of demoUsers) {
-    insertUser.run(u);
-  }
+  insertUser.run(adminUser);
 
   // 2. Seed Spaces
   const insertSpace = db.prepare(`
@@ -291,7 +263,7 @@ function seedDefaultData() {
       statusOverride: 'auto',
       archiveVisibility: 'public',
       postsRequireApproval: 0,
-      createdByUserId: 'user-priya',
+      createdByUserId: 'user-admin',
       createdAt: past7Days,
       updatedAt: past7Days,
     },
@@ -312,7 +284,7 @@ function seedDefaultData() {
       statusOverride: 'auto',
       archiveVisibility: 'limited',
       postsRequireApproval: 1, // approval mode demo!
-      createdByUserId: 'user-priya',
+      createdByUserId: 'user-admin',
       createdAt: past7Days,
       updatedAt: past7Days,
     },
@@ -333,7 +305,7 @@ function seedDefaultData() {
       statusOverride: 'auto',
       archiveVisibility: 'public',
       postsRequireApproval: 0,
-      createdByUserId: 'user-rahul',
+      createdByUserId: 'user-admin',
       createdAt: past7Days,
       updatedAt: past7Days,
     },
@@ -354,7 +326,7 @@ function seedDefaultData() {
       statusOverride: 'auto',
       archiveVisibility: 'public',
       postsRequireApproval: 0,
-      createdByUserId: 'user-priya',
+      createdByUserId: 'user-admin',
       createdAt: past7Days,
       updatedAt: past7Days,
     },
@@ -370,19 +342,10 @@ function seedDefaultData() {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  insertParticipant.run('space-lalbaug', 'user-priya', 'organizer', past7Days, 0, past7Days);
-  insertParticipant.run('space-lalbaug', 'user-rahul', 'participant', past2Days, 0, past2Days);
-  insertParticipant.run('space-lalbaug', 'user-samira', 'participant', past2Days, 0, past2Days);
-
-  insertParticipant.run('space-wedding', 'user-priya', 'organizer', past7Days, 0, past7Days);
-  insertParticipant.run('space-wedding', 'user-rahul', 'participant', past2Days, 0, past2Days);
-
-  insertParticipant.run('space-durga', 'user-rahul', 'organizer', past7Days, 0, past7Days);
-  insertParticipant.run('space-durga', 'user-priya', 'participant', past2Days, 0, past2Days);
-
-  insertParticipant.run('space-cubbon', 'user-priya', 'organizer', past7Days, 0, past7Days);
-  insertParticipant.run('space-cubbon', 'user-rahul', 'participant', past7Days, 0, past7Days);
-  insertParticipant.run('space-cubbon', 'user-samira', 'participant', past7Days, 0, past7Days);
+  insertParticipant.run('space-lalbaug', 'user-admin', 'organizer', past7Days, 0, past7Days);
+  insertParticipant.run('space-wedding', 'user-admin', 'organizer', past7Days, 0, past7Days);
+  insertParticipant.run('space-durga', 'user-admin', 'organizer', past7Days, 0, past7Days);
+  insertParticipant.run('space-cubbon', 'user-admin', 'organizer', past7Days, 0, past7Days);
 
   // 4. Seed Announcements
   const insertAnnouncement = db.prepare(`
@@ -393,7 +356,7 @@ function seedDefaultData() {
   insertAnnouncement.run(
     'ann-1',
     'space-lalbaug',
-    'user-priya',
+    'user-admin',
     'Evening Maha-Aarti Schedule Updated',
     'Due to heavy devotee turnout, the concluding Visarjan Aarti will take place at 8:00 PM. Please follow volunteer marshals inside the central enclosure.',
     1,
@@ -403,7 +366,7 @@ function seedDefaultData() {
   insertAnnouncement.run(
     'ann-2',
     'space-wedding',
-    'user-priya',
+    'user-admin',
     'Baraat & Sangeet Timings',
     'Baraat gathers at the North Courtyard at 6:30 PM. Royal Rajasthani dinner served immediately following the rings exchange.',
     1,
@@ -423,7 +386,7 @@ function seedDefaultData() {
   insertContribution.run(
     'c-1',
     'space-lalbaug',
-    'user-rahul',
+    'user-admin',
     'photo',
     'https://images.unsplash.com/photo-1567591414240-e9c1e59f3e06?auto=format&fit=crop&w=800&q=80',
     'The majestic evening aarti moments. May Bappa bless everyone with peace and good health. Ganpati Bappa Morya! 🙏✨',
@@ -436,7 +399,7 @@ function seedDefaultData() {
   insertContribution.run(
     'c-2',
     'space-lalbaug',
-    'user-samira',
+    'user-admin',
     'note',
     null,
     'Offering prayers for our family elders and community wellbeing. The disciplined devotion among thousands of people standing in line was deeply moving.',
@@ -449,7 +412,7 @@ function seedDefaultData() {
   insertContribution.run(
     'c-3',
     'space-lalbaug',
-    'user-samira',
+    'user-admin',
     'photo',
     'https://images.unsplash.com/photo-1609803388062-8929949f2b86?auto=format&fit=crop&w=800&q=80',
     'Modak offerings and traditional dhol tasha beats echoing through the Lalbaug precinct.',
@@ -463,7 +426,7 @@ function seedDefaultData() {
   insertContribution.run(
     'c-wedding-pending',
     'space-wedding',
-    'user-rahul',
+    'user-admin',
     'photo',
     'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=800&q=80',
     'Sneha looking ethereal in her royal lehenga! Ready for the Sangeet stage dance! 🎉💃',
@@ -477,7 +440,7 @@ function seedDefaultData() {
   insertContribution.run(
     'c-flagged',
     'space-lalbaug',
-    'user-samira',
+    'user-admin',
     'note',
     null,
     'Check out our external discount t-shirts at festival-merch-deals.xyz/buy and call 999999999 for bulk orders!',
@@ -499,7 +462,7 @@ function seedDefaultData() {
     'rep-1',
     'c-flagged',
     'space-lalbaug',
-    'user-rahul',
+    'user-admin',
     'spam',
     'Promoting commercial external t-shirt sales in the sacred devotional space.',
     'pending',
@@ -513,9 +476,8 @@ function seedDefaultData() {
     INSERT INTO celebrations (contribution_id, user_id, created_at)
     VALUES (?, ?, ?)
   `);
-  insertCelebration.run('c-1', 'user-priya', past2Days);
-  insertCelebration.run('c-1', 'user-samira', past2Days);
-  insertCelebration.run('c-2', 'user-rahul', past2Days);
+  insertCelebration.run('c-1', 'user-admin', past2Days);
+  insertCelebration.run('c-2', 'user-admin', past2Days);
 
   // 8. Seed Activity Log
   const insertLog = db.prepare(`
@@ -525,7 +487,7 @@ function seedDefaultData() {
   insertLog.run(
     'log-1',
     'space-lalbaug',
-    'user-priya',
+    'user-admin',
     'announcement_published',
     'Published pinned bulletin: Evening Maha-Aarti Schedule Updated',
     past2Days
@@ -533,7 +495,7 @@ function seedDefaultData() {
   insertLog.run(
     'log-2',
     'space-wedding',
-    'user-priya',
+    'user-admin',
     'approval_mode_enabled',
     'Enabled "Contributions Require Approval" mode for private occasion safety',
     past7Days
@@ -563,14 +525,12 @@ export function verifyPasswordHash(password: string, salt: string, hash: string)
   }
 }
 
-// Ensure demo accounts have default password for testing
+// Ensure platform admin has default password configured
 try {
-  const demoUsers = ['user-priya', 'user-rahul', 'user-anita', 'user-samira'];
-  const { salt, hash } = hashPassword('password123');
-  for (const uid of demoUsers) {
-    db.prepare('UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ? AND (password_hash IS NULL OR password_hash = "")').run(salt, hash, uid);
-  }
+  const { salt, hash } = hashPassword('admin123');
+  db.prepare('UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ? AND (password_hash IS NULL OR password_hash = "")').run(salt, hash, 'user-admin');
 } catch (_) {}
+
 
 // Database-backed Session Management
 export function createSession(userId: string): { id: string; expiresAt: string } {

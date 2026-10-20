@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { 
   Sparkles, PlusCircle, Shield, UserCheck, 
-  Menu, X, Check, ChevronDown, LogOut,
+  Menu, X, ChevronDown, LogOut,
   LogIn, Calendar
 } from 'lucide-react';
 
@@ -16,14 +16,16 @@ export function Navbar() {
   const { 
     currentUser, 
     isAuthenticated, 
-    allUsers, 
-    switchDemoUser, 
     logout, 
     openAuthModal 
   } = useAuth();
   
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  const isAdmin = Boolean(
+    currentUser && (currentUser.role === 'admin' || currentUser.role === 'platform_moderator')
+  );
 
   const navLinks = [
     { href: '/', label: 'Explore Occasions' },
@@ -71,29 +73,33 @@ export function Navbar() {
                 );
               })}
 
-              <Link
-                href="/platform-safety"
-                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                  pathname.startsWith('/platform-safety')
-                    ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 font-semibold'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-rose-600 hover:bg-rose-50/50 dark:hover:bg-rose-950/20'
-                }`}
-              >
-                <Shield className="w-4 h-4 text-rose-500" />
-                <span>Safety Hub</span>
-              </Link>
+              {/* Safety tab: visible ONLY to users with admin/platform_moderator role */}
+              {isAdmin && (
+                <Link
+                  href="/platform-safety"
+                  className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                    pathname.startsWith('/platform-safety')
+                      ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 font-semibold'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-rose-600 hover:bg-rose-50/50 dark:hover:bg-rose-950/20'
+                  }`}
+                >
+                  <Shield className="w-4 h-4 text-rose-500" />
+                  <span>Safety Hub</span>
+                </Link>
+              )}
             </nav>
           </div>
 
-          {/* Right Action Bar: Real Authentication & Demo Persona Switcher */}
+          {/* Right Action Bar */}
           <div className="flex items-center gap-2 sm:gap-3">
             
             {isAuthenticated && currentUser ? (
               /* Authenticated User Profile Dropdown */
               <div className="relative">
                 <button
+                  type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-700/80 text-left transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-700/80 text-left transition-all cursor-pointer"
                   aria-expanded={userDropdownOpen}
                 >
                   <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
@@ -111,7 +117,7 @@ export function Navbar() {
                       )}
                     </div>
                     <span className="text-[10px] text-stone-500 dark:text-stone-400 capitalize">
-                      {currentUser.role === 'platform_moderator' ? 'Safety Moderator' : currentUser.contactType}
+                      {isAdmin ? 'Platform Admin' : 'Participant'}
                     </span>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
@@ -131,7 +137,7 @@ export function Navbar() {
                       </p>
                       <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-[10px] font-medium text-stone-600 dark:text-stone-300">
                         <UserCheck className="w-3 h-3 text-emerald-500" />
-                        {currentUser.role === 'platform_moderator' ? 'Platform Moderator' : 'Verified Attendee'}
+                        {isAdmin ? 'Platform Administrator' : 'Verified Attendee'}
                       </div>
                     </div>
 
@@ -150,40 +156,22 @@ export function Navbar() {
                         <PlusCircle className="w-4 h-4 text-stone-400" />
                         Create New Occasion
                       </Link>
+                      {isAdmin && (
+                        <Link
+                          href="/platform-safety"
+                          className="w-full text-left px-4 py-2 text-xs flex items-center gap-2.5 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-medium"
+                        >
+                          <Shield className="w-4 h-4 text-rose-500" />
+                          Platform Safety Console
+                        </Link>
+                      )}
                     </div>
-
-                    {/* Demo Persona Submenu */}
-                    {allUsers.length > 0 && (
-                      <div className="px-4 pt-2 pb-1.5 border-t border-stone-100 dark:border-stone-800">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                          Demo Personas Switcher
-                        </span>
-                        <div className="mt-1.5 space-y-0.5">
-                          {allUsers.map((u) => {
-                            const isCurrent = u.id === currentUser.id;
-                            return (
-                              <button
-                                key={u.id}
-                                onClick={() => switchDemoUser(u.id)}
-                                className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg flex items-center justify-between transition-colors ${
-                                  isCurrent
-                                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold'
-                                    : 'text-stone-600 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800'
-                                }`}
-                              >
-                                <span className="truncate">{u.displayName}</span>
-                                {isCurrent && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
 
                     <div className="px-2 pt-1 border-t border-stone-100 dark:border-stone-800">
                       <button
+                        type="button"
                         onClick={logout}
-                        className="w-full px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors flex items-center gap-2"
+                        className="w-full px-3 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Sign Out
@@ -197,7 +185,7 @@ export function Navbar() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => openAuthModal('otp')}
+                  onClick={() => openAuthModal('login')}
                   className="px-3.5 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5 text-amber-600" />
@@ -215,8 +203,9 @@ export function Navbar() {
 
             {/* Mobile menu trigger */}
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+              className="md:hidden p-2 rounded-xl text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 cursor-pointer"
               aria-label="Toggle mobile menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -241,13 +230,17 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              href="/platform-safety"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-xl text-sm font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-            >
-              Platform Safety & Moderation
-            </Link>
+
+            {/* Mobile Safety Tab: only for admin */}
+            {isAdmin && (
+              <Link
+                href="/platform-safety"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-3 py-2 rounded-xl text-sm font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              >
+                Platform Safety & Moderation
+              </Link>
+            )}
 
             {!isAuthenticated && (
               <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex gap-2">
@@ -255,7 +248,7 @@ export function Navbar() {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    openAuthModal('otp');
+                    openAuthModal('login');
                   }}
                   className="w-1/2 py-2 text-xs font-semibold text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-stone-700 rounded-xl cursor-pointer"
                 >
@@ -277,7 +270,7 @@ export function Navbar() {
         )}
       </header>
 
-      {/* Real Authentication Modal (Global) */}
+      {/* Authentication Modal */}
       <AuthModal />
     </>
   );

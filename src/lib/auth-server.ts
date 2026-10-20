@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSession, getUserById } from '@/lib/db';
+import { getSession } from '@/lib/db';
 import { User } from '@/lib/types';
 
 export const SESSION_COOKIE_NAME = 'occasion_session';
@@ -38,17 +38,9 @@ export async function verifyUserAuthorization(
     return { authorized: true, user: authUser };
   }
 
-  // Allow platform moderators to act on any resource
-  if (authUser && authUser.role === 'platform_moderator') {
+  // Allow platform moderators and admins to act on any resource
+  if (authUser && (authUser.role === 'platform_moderator' || authUser.role === 'admin')) {
     return { authorized: true, user: authUser };
-  }
-
-  // Fallback for local development demo switcher if no cookie is present yet
-  if (process.env.NODE_ENV !== 'production' && !authUser) {
-    const demoUser = getUserById(targetUserId);
-    if (demoUser) {
-      return { authorized: true, user: demoUser };
-    }
   }
 
   if (!authUser) {
